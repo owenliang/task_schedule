@@ -9,11 +9,11 @@
 ```
     /*
      *
-     *             J O B 1
-     *          /    \       \
-     *        V      V      V
-     *     JOB2  JOB3  JOB5
-     *         \     /
+     *          J  O  B 1
+     *          /   \   \
+     *        V      V    V
+     *     JOB2    JOB3   JOB5
+     *         \    /
      *         V   V
      *         JOB4
      */
