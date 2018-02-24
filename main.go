@@ -1,7 +1,7 @@
 package main
 
 import (
-	. "./task_schedule"
+	"./task_schedule"
 	"fmt"
 )
 
