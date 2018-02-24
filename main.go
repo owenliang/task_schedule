@@ -1,12 +1,12 @@
 package main
 
 import (
-	"./task_schedule"
+	"github.com/owenliang/task_schedule/task_schedule"
 	"fmt"
 )
 
 func main() {
-	var taskGraph TaskGraph
+	var taskGraph task_schedule.TaskGraph
 	taskGraph = taskGraph.New()
 
 	job5Deps := [] string{}
