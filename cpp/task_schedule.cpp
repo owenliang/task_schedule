@@ -76,15 +76,13 @@ void ScheduleUnit::offer(int offerCount, std::vector<TaskInfo*>* toScheduleTasks
 }
 
 // 调度单元是否完成
-bool ScheduleUnit::done(bool* success) {
+bool ScheduleUnit::done() {
     // 全部调度成功
     if (todo_.empty() && doing_.empty()) {
-        *success = true;
         return true;
     }
     // 调度失败超过次数, 没有其他未完成的任务, 立即结束调度
     if (doing_.empty() && finalFail_) {
-        *success = false;
         return true;
     }
     return false;
@@ -105,8 +103,7 @@ void TaskSchedule::checkUnitStatus(ScheduleUnit* unit) {
     // DEBUG
     unit->getGraph()->printGraph(std::cout);
 
-    bool success;
-    if (unit->done(&success)) {
+    if (unit->done()) {
         all_units_.erase(unit);
         delete unit;
     }

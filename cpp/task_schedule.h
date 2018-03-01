@@ -28,7 +28,7 @@ public:
     // 提供资源, 返回要执行的任务
     void offer(int offerCount, std::vector<TaskInfo*>* toScheduleTasks);
     // 调度单元是否完成(全部成功或者某个任务失败)
-    bool done(bool* success);
+    bool done();
     // 获取graph
     TaskGraph* getGraph() {return graph_;}
 
