@@ -1,7 +1,3 @@
-//
-// Created by smzdm on 2018/2/23.
-//
-
 #ifndef TASK_SCHEDULE_TASK_GRAPH_H
 #define TASK_SCHEDULE_TASK_GRAPH_H
 

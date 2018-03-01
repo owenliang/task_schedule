@@ -1,7 +1,3 @@
-//
-// Created by smzdm on 2018/2/23.
-//
-
 #include "task_graph.h"
 #include <stack>
 #include <iostream>
