@@ -7,21 +7,34 @@
 #include <vector>
 #include <utility>
 
+// 给调度系统用的任务信息
+struct TaskInfo {
+    TaskInfo(const std::string& taskName, const std::string& shellCmd, int maxRetry) :
+            taskName(taskName), shellCmd(shellCmd), maxRetry(maxRetry) {
+    }
+    std::string taskName; // 任务名称
+    std::string shellCmd; // Shell命令
+    int maxRetry;   // 最大重试次数
+};
+
 class TaskGraph {
 public:
     ~TaskGraph();
 
-    // 添加任务, 声明依赖
-    bool addTask(const std::string& taskName, const std::vector<std::string> &deps);
+    // 添加任务, 声明依赖, 重试次数(默认不重试)
+    bool addTask(const std::string& taskName, const std::vector<std::string> &deps, const std::string& shellCmd, int maxRetry = 0);
 
     // 初始化拓扑
     bool initGraph();
 
     // 获取所有待执行任务
-    void getTodoTasks(std::vector<std::string> *todo);
+    void getTodoTasks(std::vector<TaskInfo*> *todo);
 
     // 标识任务完成
     bool markTaskDone(const std::string& taskName);
+
+    // 获取任务信息
+    TaskInfo* getTaskInfo(const std::string& taskName);
 
     // 打印所有任务信息
     void printGraph(std::ostream& ostream);
@@ -29,8 +42,8 @@ public:
 private:
     // 任务节点, 随着依赖的任务完成, 剩余依赖任务逐渐减少为0; 此时依赖已全部完成, 当前任务进入待执行状态.
     struct TaskNode {
-        TaskNode(const std::vector<std::string>& deps)
-                : outCounter(0), inCounter(0), done(false) {
+        TaskNode(const std::string& taskName, const std::vector<std::string>& deps, const std::string& shellCmd, int maxRetry) :
+                info(taskName, shellCmd, maxRetry), outCounter(0), inCounter(0), done(false) {
             for (std::vector<std::string>::const_iterator iter = deps.begin(); iter != deps.end(); ++iter) {
                 std::pair<std::map<std::string, bool>::iterator, bool> ret = outEdge.insert(make_pair(*iter, false));
                 if (ret.second) {
@@ -38,6 +51,8 @@ private:
                 }
             }
         }
+
+        TaskInfo info; // 调度系统需要的任务信息
 
         std::map<std::string, bool> outEdge; // 本任务依赖的其他任务、完成状况
         std::map<std::string, bool> inEdge; // 依赖了本任务的其他任务、完成状况

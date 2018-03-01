@@ -9,13 +9,13 @@ TaskGraph::~TaskGraph() {
 }
 
 // 添加任务, 声明依赖
-bool TaskGraph::addTask(const std::string& taskName, const std::vector<std::string> &deps) {
+bool TaskGraph::addTask(const std::string &taskName, const std::vector<std::string> &deps, const std::string &shellCmd, int maxRetry) {
     Graph::iterator iter = graph_.find(taskName);
     if (iter != graph_.end()) {
         return false;
     }
 
-    TaskNode* node = new TaskNode(deps);
+    TaskNode* node = new TaskNode(taskName, deps, shellCmd, maxRetry);
     graph_.insert(Graph::value_type(taskName, node));
     return true;
 }
@@ -80,10 +80,16 @@ bool TaskGraph::initGraph() {
 }
 
 // 获取所有待执行任务
-void TaskGraph::getTodoTasks(std::vector<std::string> *todo) {
+void TaskGraph::getTodoTasks(std::vector<TaskInfo*> *todo) {
     for (std::set<std::string>::iterator iter = todo_.begin(); iter != todo_.end(); ++iter) {
-        todo->push_back(*iter);
+        TaskNode* node = graph_[*iter];
+        todo->push_back(&node->info);
     }
+}
+
+// 获取任务信息
+TaskInfo* TaskGraph::getTaskInfo(const std::string& taskName) {
+    return &graph_[taskName]->info;
 }
 
 // 标识任务完成
@@ -125,6 +131,8 @@ void TaskGraph::printGraph(std::ostream& ostream) {
         TaskNode* node = iter->second;
 
         ostream << "任务名:" << iter->first << std::endl;
+        ostream << "命令:" << node->info.shellCmd << std::endl;
+        ostream << "重试次数" << node->info.maxRetry << std::endl;
         ostream << "是否完成:" << (node->done ? "YES" : "NO") << std::endl;
         ostream << "（当前）依赖这些任务:";
         for (std::map<std::string, bool>::iterator outIter = node->outEdge.begin(); outIter != node->outEdge.end(); ++outIter) {

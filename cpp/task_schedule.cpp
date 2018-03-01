@@ -3,17 +3,18 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <iostream>
+#include <fcntl.h>
 #include "task_graph.h"
 #include "task_schedule.h"
 
 // 初始化调度单元
-ScheduleUnit::ScheduleUnit(TaskGraph* graph) : graph_(graph) {
-    std::vector<std::string> todoTasks;
+ScheduleUnit::ScheduleUnit(TaskGraph* graph) : graph_(graph), finalFail_(false) {
+    std::vector<TaskInfo*> todoTasks;
 
     graph_->getTodoTasks(&todoTasks);
     for (size_t i = 0; i < todoTasks.size(); ++i) {
-        all_.insert(todoTasks[i]);
-        todo_.insert(todoTasks[i]);
+        all_.insert(todoTasks[i]->taskName);
+        todo_.insert(todoTasks[i]->taskName);
     }
 }
 
@@ -29,12 +30,12 @@ void ScheduleUnit::success(const std::string& taskName) {
 
     graph_->markTaskDone(taskName);
 
-    std::vector<std::string> todoTasks;
+    std::vector<TaskInfo*> todoTasks;
     graph_->getTodoTasks(&todoTasks);
     for (size_t i = 0; i < todoTasks.size(); ++i) {
-        if (!all_.count(todoTasks[i])) {
-            all_.insert(todoTasks[i]);
-            todo_.insert(todoTasks[i]);
+        if (!all_.count(todoTasks[i]->taskName)) {
+            all_.insert(todoTasks[i]->taskName);
+            todo_.insert(todoTasks[i]->taskName);
         }
     }
 }
@@ -43,36 +44,72 @@ void ScheduleUnit::success(const std::string& taskName) {
 void ScheduleUnit::fail(const std::string& taskName) {
     doing_.erase(taskName);
     todo_.insert(taskName);
+
+    int failTimes;
+
+    if (!failTimes_.count(taskName)) {
+        failTimes = failTimes_[taskName] = 0;
+    } else {
+        failTimes = failTimes_[taskName]++;
+    }
+
+    TaskInfo* info = graph_->getTaskInfo(taskName);
+    if (failTimes >= info->maxRetry) { // 超过任务指定失败次数
+        finalFail_ = true;
+    }
 }
 
 // 提供资源, 返回要执行的任务
-void ScheduleUnit::offer(int offerCount, std::vector<std::string>* toScheduleTasks) {
+void ScheduleUnit::offer(int offerCount, std::vector<TaskInfo*>* toScheduleTasks) {
+    if (finalFail_) { // 单元失败, 不再继续调度更多任务
+        return;
+    }
     for (int i = 0; i < offerCount; ++i) {
         if (todo_.begin() == todo_.end()) {
             break;
         }
         std::string taskName = *todo_.begin();
-        toScheduleTasks->push_back(taskName);
+        toScheduleTasks->push_back(graph_->getTaskInfo(taskName));
         todo_.erase(taskName);
         doing_.insert(taskName);
     }
 }
 
 // 调度单元是否完成
-bool ScheduleUnit::done() {
-    return todo_.empty() && doing_.empty();
+bool ScheduleUnit::done(bool* success) {
+    // 全部调度成功
+    if (todo_.empty() && doing_.empty()) {
+        *success = true;
+        return true;
+    }
+    // 调度失败超过次数, 没有其他未完成的任务, 立即结束调度
+    if (doing_.empty() && finalFail_) {
+        *success = false;
+        return true;
+    }
+    return false;
 }
 
 // 初始化调度器
 TaskSchedule::TaskSchedule(int maxParallel) : maxParallel_(maxParallel), leftOffer_(maxParallel) {
-    pthread_mutex_init(&queueMutex_, NULL);
 }
 
 // 添加新的调度任务
 void TaskSchedule::addGraph(TaskGraph *graph) {
-    pthread_mutex_lock(&queueMutex_);
-    newGraph_.push(graph);
-    pthread_mutex_unlock(&queueMutex_);
+    all_units_.insert(new ScheduleUnit(graph));
+    graph->printGraph(std::cout);
+}
+
+// 检查执行单元状态
+void TaskSchedule::checkUnitStatus(ScheduleUnit* unit) {
+    // DEBUG
+    unit->getGraph()->printGraph(std::cout);
+
+    bool success;
+    if (unit->done(&success)) {
+        all_units_.erase(unit);
+        delete unit;
+    }
 }
 
 // 启动调度
@@ -83,20 +120,7 @@ void TaskSchedule::run() {
     std::queue<TaskGraph*> newGraph;
 
     do {
-        // 1, 获取新调度任务
-        pthread_mutex_lock(&queueMutex_);
-        newGraph.swap(newGraph_);
-        pthread_mutex_unlock(&queueMutex_);
-
-        while (!newGraph.empty()) {
-            TaskGraph* graph = newGraph.front();
-            newGraph.pop();
-            all_units_.insert(new ScheduleUnit(graph));
-            std::cout << "新增单元,信息如下:" << std::endl;
-            graph->printGraph(std::cout);
-        }
-
-        // 2, 检测结束的任务与单元
+        // 1, 检测结束的任务与单元
         do {
             int status = 0;
             pid_t pid = waitpid(-1, &status, WNOHANG);
@@ -112,20 +136,15 @@ void TaskSchedule::run() {
                     leftOffer_++;
                     ScheduleUnit* unit = info.second;
                     scheduleInfo_.erase(pid);
-                    if (unit->done()) {
-                        std::cout << "单元完成,信息如下:" << std::endl;
-                        unit->getGraph()->printGraph(std::cout);
-                        all_units_.erase(unit);
-                        delete unit;
-                    }
+                    checkUnitStatus(unit);
                 }
             } else if (pid == 0 || errno == ECHILD) { // 当前没有其他子进程退出, 或者没有子进程了
                 break;
             }
         } while(true);
 
-        // 3, 配额offer给调度单元
-        std::vector<std::string> toSchedule;
+        // 2, 配额offer给调度单元
+        std::vector<TaskInfo*> toSchedule;
         for (std::set<ScheduleUnit*>::iterator iter = all_units_.begin(); iter != all_units_.end(); ++iter) {
             if (!leftOffer_) { // 没有配额
                 break;
@@ -138,25 +157,32 @@ void TaskSchedule::run() {
                 leftOffer_ -= toSchedule.size();
             }
 
-            std::cout << "准备新建并行任务: " << toSchedule.size() << "个" << std::endl;
-
             // 尝试启动每个任务, 多进程并行处理
             for (size_t i = 0; i < toSchedule.size(); ++i) {
                 pid_t pid = fork();
                 if (pid == -1) {
                     leftOffer_++;
-                    unit->fail(toSchedule[i]);
+                    unit->fail(toSchedule[i]->taskName);
+                    checkUnitStatus(unit);
                 } else if (pid > 0) { // 父进程
-                    scheduleInfo_.insert(make_pair(pid, make_pair(toSchedule[i], unit)));
+                    scheduleInfo_.insert(make_pair(pid, make_pair(toSchedule[i]->taskName, unit)));
                 } else { // 子进程
-                    if (execlp("echo", "echo", "执行任务:", toSchedule[i].c_str(), NULL) == -1) { // 调起失败,exit(-1)
+                    int nullFd = open("/dev/null", O_APPEND);
+                    if (nullFd != -1) {
+                        dup2(nullFd, STDOUT_FILENO);
+                        dup2(nullFd, STDERR_FILENO);
+                        close(nullFd);
+                    }
+                    if (execlp("/bin/bash", "bash", "-c", toSchedule[i]->shellCmd.c_str(), NULL) == -1) { // 调起失败,exit(-1)
                         exit(-1);
                     }
                 }
             }
         }
 
-        // 4, 休眠10毫秒
-        usleep(10 * 1000);
+        // 3, 所有单元结束，退出
+        if (all_units_.empty()) {
+            break;
+        }
     } while (true);
 }

@@ -1,7 +1,6 @@
 #ifndef CPP_TASK_SCHEDULE_H
 #define CPP_TASK_SCHEDULE_H
 
-#include <pthread.h>
 #include <queue>
 #include <map>
 #include <string>
@@ -12,6 +11,8 @@
 #include <unistd.h>
 
 #include "task_schedule_interface.h"
+
+class TaskInfo;
 
 // 调度单元, 管理单个拓扑
 class ScheduleUnit {
@@ -25,9 +26,9 @@ public:
     // 任务执行失败
     void fail(const std::string& taskName);
     // 提供资源, 返回要执行的任务
-    void offer(int offerCount, std::vector<std::string>* toScheduleTasks);
-    // 调度单元是否完成
-    bool done();
+    void offer(int offerCount, std::vector<TaskInfo*>* toScheduleTasks);
+    // 调度单元是否完成(全部成功或者某个任务失败)
+    bool done(bool* success);
     // 获取graph
     TaskGraph* getGraph() {return graph_;}
 
@@ -39,6 +40,11 @@ private:
     std::set<std::string> todo_; // 等待执行的任务
     std::set<std::string> doing_; // 正在执行的任务
     std::set<std::string> done_; // 执行完成的任务
+
+    // 是否某个任务彻底失败
+    bool finalFail_;
+    // 每个任务的失败次数
+    std::map<std::string, int> failTimes_;
 };
 
 // 调度器, 管理多个拓扑
@@ -54,14 +60,13 @@ public:
     void run();
 
 private:
+    // 检查执行单元状态
+    void checkUnitStatus(ScheduleUnit* unit);
+
     // 限制最大并发任务数
     int maxParallel_;
     // 剩余并发配额
     int leftOffer_;
-
-    // 新添加的调度任务
-    pthread_mutex_t queueMutex_;
-    std::queue<TaskGraph*> newGraph_;
 
     // 维护所有的调度单元
     std::set<ScheduleUnit*> all_units_;
