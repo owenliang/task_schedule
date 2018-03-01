@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/owenliang/task_schedule/task_schedule"
+	"task_schedule"
 	"fmt"
 )
 
