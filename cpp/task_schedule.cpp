@@ -114,8 +114,6 @@ void TaskSchedule::checkUnitStatus(ScheduleUnit* unit) {
 // 为了简化采用了轮询形式, 建议生产环境采用epoll+pipe监听增加拓扑和任务执行完成的事件, 避免while+sleep的调度形式
 //
 void TaskSchedule::run() {
-    std::queue<TaskGraph*> newGraph;
-
     do {
         // 1, 检测结束的任务与单元
         do {
