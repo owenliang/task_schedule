@@ -2,15 +2,95 @@
 
 ## 项目介绍
 
-基于DAG图的调度DEMO，基于图数据结构与拓扑序列理论，实现一个任务调度类。
+基于DAG图的调度DEMO，基于图数据结构与拓扑序列理论，实现一个任务调度工具。
 
 ## 功能
 
-当前目标是做一个命令行工具，传入一个JSON配置拓扑，然后进行调度，所有任务完成后退出。
+当前是一个命令行工具，通过JSON文件配置任务依赖关系，即可由工具完成调度。
 
-当前没有实现JSON解析，仍旧是main函数中代码建立的拓扑图，有时间补上。
+现阶段只是一个DEMO, 有时间会把调度结果作为JSON输出, 并且利用工具的进程退出码作为调度成功与否的标识, 方便使用.
 
-## 输入
+## 配置
+
+```
+
+{
+  "maxParallel": 5,
+  "graph": {
+    "myGraph": {
+      "task": [
+        {
+          "name": "createFile",
+          "cmd": "touch /tmp/my_file",
+          "retry": 2
+        },
+        {
+          "name": "appendFile",
+          "cmd": "echo hello >> /tmp/my_file",
+          "deps": ["createFile"]
+        }
+      ]
+    }
+  }
+}
+
+```
+
+## 运行与日志
+```
+
+./scheduler ./example.json
+
+---------------
+任务名:appendFile
+SHELL命令:echo hello >> /tmp/my_file
+最大重试次数0
+是否完成:NO
+（当前）依赖这些任务: createFile
+（当前）被这些任务依赖:
+任务名:createFile
+SHELL命令:touch /tmp/my_file
+最大重试次数2
+是否完成:NO
+（当前）依赖这些任务:
+（当前）被这些任务依赖: appendFile
+---------------
+---------------
+任务名:appendFile
+SHELL命令:echo hello >> /tmp/my_file
+最大重试次数0
+是否完成:NO
+（当前）依赖这些任务:
+（当前）被这些任务依赖:
+任务名:createFile
+SHELL命令:touch /tmp/my_file
+最大重试次数2
+是否完成:YES
+（当前）依赖这些任务:
+（当前）被这些任务依赖: appendFile
+---------------
+---------------
+任务名:appendFile
+SHELL命令:echo hello >> /tmp/my_file
+最大重试次数0
+是否完成:YES
+（当前）依赖这些任务:
+（当前）被这些任务依赖:
+任务名:createFile
+SHELL命令:touch /tmp/my_file
+最大重试次数2
+是否完成:YES
+（当前）依赖这些任务:
+（当前）被这些任务依赖:
+---------------
+
+```
+
+## 
+
+## 原理展示 
+
+### 输入
 
 ```
     /*
@@ -36,7 +116,7 @@
       */
 ```
 
-## 输出
+### 输出
 
 ```
 
