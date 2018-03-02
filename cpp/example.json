@@ -1,0 +1,19 @@
+{
+  "maxParallel": 5,
+  "graph": {
+    "myGraph": {
+      "task": [
+        {
+          "name": "createFile",
+          "cmd": "touch /tmp/my_file",
+          "retry": 2
+        },
+        {
+          "name": "appendFile",
+          "cmd": "echo hello >> /tmp/my_file",
+          "deps": ["createFile"]
+        }
+      ]
+    }
+  }
+}

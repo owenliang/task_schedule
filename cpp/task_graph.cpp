@@ -131,8 +131,8 @@ void TaskGraph::printGraph(std::ostream& ostream) {
         TaskNode* node = iter->second;
 
         ostream << "任务名:" << iter->first << std::endl;
-        ostream << "命令:" << node->info.shellCmd << std::endl;
-        ostream << "重试次数" << node->info.maxRetry << std::endl;
+        ostream << "SHELL命令:" << node->info.shellCmd << std::endl;
+        ostream << "最大重试次数" << node->info.maxRetry << std::endl;
         ostream << "是否完成:" << (node->done ? "YES" : "NO") << std::endl;
         ostream << "（当前）依赖这些任务:";
         for (std::map<std::string, bool>::iterator outIter = node->outEdge.begin(); outIter != node->outEdge.end(); ++outIter) {
